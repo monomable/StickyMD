@@ -1,91 +1,44 @@
-# StickyMD
+﻿# StickyMD
 
-StickyMD is a lightweight desktop sticky note application for Windows that supports **Markdown formatting**.  
-Inspired by the simplicity of Windows Sticky Notes, StickyMD allows you to quickly write notes and todos directly on your desktop with the flexibility of Markdown.
+StickyMD is a lightweight WPF sticky note app for Windows with Markdown support.
 
-## ✨ Features
+## Features
 
-- 📝 **Markdown Support**  
-  Write notes using Markdown syntax including headings, lists, checkboxes, links, and code blocks.
+- Windows Sticky Notes style main board + individual note windows
+- Markdown rendering (Markdig)
+- Multi-note management, search, color tags
+- Auto-save (1s debounce) + save on exit
+- JSON storage: `%AppData%/StickyMD/notes.json`
+- Tray mode (New Note / Show Notes / Quit)
+- Single-instance app (secondary launch activates existing instance)
+- Start with Windows (Registry Run key)
+- Keyboard shortcuts
+  - `Ctrl+N` new note
+  - `Ctrl+F` focus search
+  - `Ctrl+B` bold
+  - `Ctrl+I` italic
+  - `Ctrl+S` save
 
-- 📌 **Sticky Notes on Desktop**  
-  Notes stay visible on your desktop just like classic sticky notes.
+## Build
 
-- ⚡ **Lightweight & Fast**  
-  Designed to run quietly in the background with minimal CPU and memory usage.
+```bash
+dotnet build StickyMD.sln
+```
 
-- 📂 **Local File Storage**  
-  Notes are saved locally, keeping your data simple and portable.
+## Run
 
-- 🎯 **Todo Friendly**  
-  Supports Markdown checkboxes for simple task tracking.
+```bash
+dotnet run --project StickyMD.csproj
+```
 
-Example:
+## Publish (Single File)
 
-Today's Tasks
+```bash
+dotnet publish StickyMD.csproj -c Release
+```
 
- Fix Jenkins pipeline
+Output:
 
- Review Kubernetes logs
+`bin/Release/net8.0-windows/win-x64/publish/StickyMD.exe`
 
- Drink coffee
-
-
-## 🚀 Why StickyMD?
-
-Most sticky note applications either lack Markdown support or are unnecessarily heavy.  
-StickyMD aims to provide a **simple, fast, and developer-friendly sticky note experience**.
-
-Perfect for:
-
-- Quick todos
-- Development notes
-- Temporary reminders
-- Markdown lovers
-
-## 🖥️ Platform
-
-Currently supported:
-
-- Windows
-
-Built with:
-
-- WPF
-- C#
-- .NET
-
-## 📦 Installation
-
-Instructions will be provided soon.
-
-Future distribution may include:
-
-- Microsoft Store
-- GitHub Releases
-
-## 📸 Preview
-
-(Preview screenshot coming soon)
-
-## 🛣️ Roadmap
-
-Planned features:
-
-- Multiple sticky notes
-- Window position persistence
-- Auto-save
-- Markdown live preview
-- System tray support
-
-## 🤝 Contributing
-
-Contributions are welcome!
-
-If you have ideas, improvements, or bug fixes, feel free to open an issue or submit a pull request.
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
-
-See the [LICENSE](LICENSE) file for details.
+> Release publish is configured as **single-file, framework-dependent** to keep the EXE size small.

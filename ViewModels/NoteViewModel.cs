@@ -1,55 +1,59 @@
 ﻿using System.Windows.Documents;
-using System.Windows.Media;
-using System.Windows.Threading;
+using MediaBrush = System.Windows.Media.Brush;
+using MediaBrushConverter = System.Windows.Media.BrushConverter;
+using MediaSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using StickyMD.Models;
 using StickyMD.Services;
-using StickyMD.Utils;
 
 namespace StickyMD.ViewModels;
 
 public sealed class NoteViewModel : ViewModelBase
 {
-    private readonly NoteService _noteService;
-    private readonly DispatcherTimer _saveDebounceTimer;
+    private static readonly IReadOnlyDictionary<string, MediaBrush> ColorBrushes = new Dictionary<string, MediaBrush>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["yellow"] = CreateBrush("#EFE6B5"),
+        ["pink"] = CreateBrush("#EFD3E2"),
+        ["blue"] = CreateBrush("#D8E6F7"),
+        ["green"] = CreateBrush("#DCEED4"),
+        ["purple"] = CreateBrush("#E4DBF5")
+    };
+
+    private readonly MarkdownService _markdownService;
 
     private string _content;
-    private FlowDocument _previewDocument;
+    private string _color;
     private DateTime _updatedAt;
-    private string _updatedTimeText;
+    private double _x;
+    private double _y;
+    private double _width;
+    private double _height;
+    private bool _isPreviewMode;
+    private bool _hasPendingChanges;
 
-    private readonly double _x;
-    private readonly double _y;
-    private readonly double _width;
-    private readonly double _height;
+    private FlowDocument? _previewDocument;
+    private FlowDocument? _fullDocument;
 
-    public NoteViewModel(Note note, NoteService noteService, Brush cardBackground)
+    public NoteViewModel(NoteModel model, MarkdownService markdownService)
     {
-        _noteService = noteService;
+        _markdownService = markdownService;
 
-        Id = note.Id;
-        CardBackground = cardBackground;
+        Id = model.Id;
+        CreatedAt = model.CreatedAt;
 
-        _content = note.Content;
-        _previewDocument = MarkdownRenderer.Render(_content, compact: true, maxBlocks: 3);
-
-        _updatedAt = note.UpdatedAt;
-        _updatedTimeText = _updatedAt.ToLocalTime().ToString("HH:mm");
-
-        _x = note.X;
-        _y = note.Y;
-        _width = note.Width;
-        _height = note.Height;
-
-        _saveDebounceTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _saveDebounceTimer.Tick += SaveDebounceTimer_Tick;
+        _content = model.Content;
+        _color = model.Color;
+        _updatedAt = model.UpdatedAt;
+        _x = model.X;
+        _y = model.Y;
+        _width = model.Width;
+        _height = model.Height;
     }
+
+    public event EventHandler? Changed;
 
     public string Id { get; }
 
-    public Brush CardBackground { get; }
+    public DateTime CreatedAt { get; }
 
     public string Content
     {
@@ -61,21 +65,131 @@ public sealed class NoteViewModel : ViewModelBase
                 return;
             }
 
-            PreviewDocument = MarkdownRenderer.Render(_content, compact: true, maxBlocks: 3);
-            ScheduleSave();
+            InvalidateRenderCache();
+            OnPropertyChanged(nameof(Title));
+            MarkChanged();
         }
+    }
+
+    public string Color
+    {
+        get => _color;
+        set
+        {
+            if (!SetProperty(ref _color, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(NoteColorBrush));
+            MarkChanged();
+        }
+    }
+
+    public MediaBrush NoteColorBrush => ResolveColorBrush(Color);
+
+    public DateTime UpdatedAt
+    {
+        get => _updatedAt;
+        private set
+        {
+            if (!SetProperty(ref _updatedAt, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(UpdatedTimeText));
+        }
+    }
+
+    public string UpdatedTimeText => UpdatedAt.ToLocalTime().ToString("HH:mm");
+
+    public string Title => ExtractTitle(Content);
+
+    public double X
+    {
+        get => _x;
+        set
+        {
+            if (!SetProperty(ref _x, value))
+            {
+                return;
+            }
+
+            MarkChanged();
+        }
+    }
+
+    public double Y
+    {
+        get => _y;
+        set
+        {
+            if (!SetProperty(ref _y, value))
+            {
+                return;
+            }
+
+            MarkChanged();
+        }
+    }
+
+    public double Width
+    {
+        get => _width;
+        set
+        {
+            if (!SetProperty(ref _width, value))
+            {
+                return;
+            }
+
+            MarkChanged();
+        }
+    }
+
+    public double Height
+    {
+        get => _height;
+        set
+        {
+            if (!SetProperty(ref _height, value))
+            {
+                return;
+            }
+
+            MarkChanged();
+        }
+    }
+
+    public bool IsPreviewMode
+    {
+        get => _isPreviewMode;
+        set => SetProperty(ref _isPreviewMode, value);
+    }
+
+    public bool HasPendingChanges
+    {
+        get => _hasPendingChanges;
+        private set => SetProperty(ref _hasPendingChanges, value);
     }
 
     public FlowDocument PreviewDocument
     {
-        get => _previewDocument;
-        private set => SetProperty(ref _previewDocument, value);
+        get
+        {
+            _previewDocument ??= _markdownService.RenderPreview(Content);
+            return _previewDocument;
+        }
     }
 
-    public string UpdatedTimeText
+    public FlowDocument FullDocument
     {
-        get => _updatedTimeText;
-        private set => SetProperty(ref _updatedTimeText, value);
+        get
+        {
+            _fullDocument ??= _markdownService.RenderFull(Content);
+            return _fullDocument;
+        }
     }
 
     public bool Contains(string keyword)
@@ -85,46 +199,99 @@ public sealed class NoteViewModel : ViewModelBase
             return true;
         }
 
-        return Content.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        return Content.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+               Title.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
-    public void FlushSaveNow()
+    public void MarkSaved(DateTime savedAt)
     {
-        _saveDebounceTimer.Stop();
-        SaveNow();
+        UpdatedAt = savedAt;
+        HasPendingChanges = false;
     }
 
-    private void ScheduleSave()
+    public NoteModel ToModel()
     {
-        _saveDebounceTimer.Stop();
-        _saveDebounceTimer.Start();
-    }
-
-    private void SaveDebounceTimer_Tick(object? sender, EventArgs e)
-    {
-        _saveDebounceTimer.Stop();
-        SaveNow();
-    }
-
-    private void SaveNow()
-    {
-        _updatedAt = DateTime.UtcNow;
-        UpdatedTimeText = _updatedAt.ToLocalTime().ToString("HH:mm");
-
-        _noteService.SaveNote(ToModel());
-    }
-
-    private Note ToModel()
-    {
-        return new Note
+        return new NoteModel
         {
             Id = Id,
             Content = Content,
-            X = _x,
-            Y = _y,
-            Width = _width,
-            Height = _height,
-            UpdatedAt = _updatedAt
+            Color = Color,
+            CreatedAt = CreatedAt,
+            UpdatedAt = UpdatedAt,
+            X = X,
+            Y = Y,
+            Width = Width,
+            Height = Height
         };
+    }
+
+    private void MarkChanged()
+    {
+        UpdatedAt = DateTime.UtcNow;
+        HasPendingChanges = true;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void InvalidateRenderCache()
+    {
+        _previewDocument = null;
+        _fullDocument = null;
+
+        OnPropertyChanged(nameof(PreviewDocument));
+        OnPropertyChanged(nameof(FullDocument));
+    }
+
+    private static MediaBrush ResolveColorBrush(string color)
+    {
+        if (ColorBrushes.TryGetValue(color, out var brush))
+        {
+            return brush;
+        }
+
+        return ColorBrushes["yellow"];
+    }
+
+    private static MediaBrush CreateBrush(string hex)
+    {
+        var brush = (MediaSolidColorBrush)new MediaBrushConverter().ConvertFromString(hex)!;
+        brush.Freeze();
+        return brush;
+    }
+
+    private static string ExtractTitle(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "Untitled";
+        }
+
+        var lines = content.Split('\n');
+
+        foreach (var line in lines)
+        {
+            var cleaned = line.Trim();
+            if (string.IsNullOrWhiteSpace(cleaned))
+            {
+                continue;
+            }
+
+            cleaned = cleaned
+                .TrimStart('#', '-', '*', '>', ' ')
+                .Replace("[ ]", string.Empty, StringComparison.Ordinal)
+                .Replace("[x]", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("`", string.Empty, StringComparison.Ordinal)
+                .Trim();
+
+            if (cleaned.Length == 0)
+            {
+                continue;
+            }
+
+            return cleaned.Length <= 48
+                ? cleaned
+                : cleaned[..48] + "...";
+        }
+
+        return "Untitled";
     }
 }

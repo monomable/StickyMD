@@ -1,0 +1,200 @@
+﻿<Window x:Class="StickyMD.Views.StickyNoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sticky Note"
+        Width="380"
+        Height="320"
+        MinWidth="300"
+        MinHeight="240"
+        WindowStyle="None"
+        ResizeMode="CanResizeWithGrip"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        PreviewKeyDown="StickyNoteWindow_PreviewKeyDown"
+        Closing="StickyNoteWindow_Closing">
+    <Window.Resources>
+        <Style x:Key="HeaderButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="15" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#15000000" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#26000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FormatButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="6" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#15000000" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#25000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="10"
+            Background="{Binding NoteColorBrush}"
+            BorderBrush="#22000000"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.22" />
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="38" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="40" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0"
+                  Background="#2CFFFFFF"
+                  MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Style="{StaticResource HeaderButtonStyle}"
+                        FontSize="20"
+                        Content="+"
+                        Click="NewButton_Click"
+                        ToolTip="새 메모" />
+
+                <Button x:Name="MenuButton"
+                        Grid.Column="2"
+                        Style="{StaticResource HeaderButtonStyle}"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="14"
+                        Content="&#xE700;"
+                        Click="MenuButton_Click"
+                        ToolTip="설정">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="NoteMenu">
+                            <MenuItem Header="Preview Mode"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsPreviewMode, Mode=TwoWay}" />
+                            <Separator />
+                            <MenuItem Header="Color: Yellow" Tag="yellow" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="Color: Pink" Tag="pink" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="Color: Blue" Tag="blue" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="Color: Green" Tag="green" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="Color: Purple" Tag="purple" Click="ColorMenuItem_Click" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+
+                <Button Grid.Column="3"
+                        Style="{StaticResource HeaderButtonStyle}"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="12"
+                        Content="&#xE711;"
+                        Click="CloseButton_Click"
+                        ToolTip="닫기" />
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="8,8,8,8">
+                <FlowDocumentScrollViewer x:Name="PreviewViewer"
+                                          Document="{Binding FullDocument}"
+                                          IsToolBarVisible="False"
+                                          BorderThickness="0"
+                                          Background="Transparent"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+
+                                          Visibility="Collapsed" />
+
+                <TextBox x:Name="EditorTextBox"
+                         Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         FontFamily="Segoe UI"
+                         FontSize="30"
+                         Foreground="#222222"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+            </Grid>
+
+            <Border Grid.Row="2"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="#30000000"
+                    Background="#22FFFFFF">
+                <StackPanel Orientation="Horizontal"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center">
+                    <Button Style="{StaticResource FormatButtonStyle}"
+                            FontWeight="Bold"
+                            FontSize="22"
+                            Content="a"
+                            Click="BoldButton_Click"
+                            ToolTip="Bold (Ctrl+B)" />
+
+                    <Button Style="{StaticResource FormatButtonStyle}"
+                            FontStyle="Italic"
+                            FontSize="22"
+                            Content="a"
+                            Click="ItalicButton_Click"
+                            ToolTip="Italic (Ctrl+I)" />
+
+                    <Button Style="{StaticResource FormatButtonStyle}"
+                            FontFamily="Consolas"
+                            FontWeight="Bold"
+                            FontSize="16"
+                            Content="&lt;/&gt;"
+                            Click="CodeButton_Click"
+                            ToolTip="Code" />
+
+                    <Button Style="{StaticResource FormatButtonStyle}"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="13"
+                            Content="&#xE8FD;"
+                            Click="ListButton_Click"
+                            ToolTip="List" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

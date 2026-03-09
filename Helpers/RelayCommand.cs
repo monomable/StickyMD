@@ -1,6 +1,6 @@
 ﻿using System.Windows.Input;
 
-namespace StickyMD.ViewModels;
+namespace StickyMD.Helpers;
 
 public sealed class RelayCommand : ICommand
 {

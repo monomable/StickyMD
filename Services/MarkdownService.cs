@@ -1,7 +1,11 @@
 ﻿using System.Text;
 using System.Windows;
 using System.Windows.Documents;
-using System.Windows.Media;
+using MediaBrush = System.Windows.Media.Brush;
+using MediaBrushConverter = System.Windows.Media.BrushConverter;
+using MediaBrushes = System.Windows.Media.Brushes;
+using MediaFontFamily = System.Windows.Media.FontFamily;
+using MediaSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -10,48 +14,56 @@ using MdInline = Markdig.Syntax.Inlines.Inline;
 using WpfBlock = System.Windows.Documents.Block;
 using WpfInline = System.Windows.Documents.Inline;
 
-namespace StickyMD.Utils;
+namespace StickyMD.Services;
 
-public static class MarkdownRenderer
+public sealed class MarkdownService
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseTaskLists()
         .Build();
 
-    private static readonly Brush CodeBackground = CreateFrozenBrush("#F5E69C");
-    private static readonly Brush TextBrush = CreateFrozenBrush("#222222");
+    private static readonly MediaBrush CodeBackground = FreezeBrush("#F5E69C");
+    private static readonly MediaBrush LinkBrush = FreezeBrush("#1A5FB4");
 
-    public static FlowDocument Render(string markdown, bool compact = false, int maxBlocks = int.MaxValue)
+    public FlowDocument RenderPreview(string markdown)
+    {
+        return Render(markdown, compact: true, maxBlocks: 2);
+    }
+
+    public FlowDocument RenderFull(string markdown)
+    {
+        return Render(markdown, compact: false, maxBlocks: int.MaxValue);
+    }
+
+    private static FlowDocument Render(string markdown, bool compact, int maxBlocks)
     {
         var parsed = Markdown.Parse(markdown ?? string.Empty, Pipeline);
 
         var document = new FlowDocument
         {
             PagePadding = new Thickness(0),
-            TextAlignment = TextAlignment.Left,
-            Background = Brushes.Transparent,
-            Foreground = TextBrush,
-            FontFamily = new FontFamily("Segoe UI"),
+            Background = MediaBrushes.Transparent,
+            FontFamily = new MediaFontFamily("Segoe UI"),
             FontSize = compact ? 14 : 13,
             LineHeight = compact ? 20 : 18
         };
 
-        var convertedCount = 0;
+        var count = 0;
         foreach (var block in parsed)
         {
             foreach (var converted in ConvertBlock(block, compact))
             {
-                if (convertedCount >= maxBlocks)
+                if (count >= maxBlocks)
                 {
                     break;
                 }
 
                 document.Blocks.Add(converted);
-                convertedCount++;
+                count++;
             }
 
-            if (convertedCount >= maxBlocks)
+            if (count >= maxBlocks)
             {
                 break;
             }
@@ -81,6 +93,14 @@ public static class MarkdownRenderer
                 yield return ConvertList(list, compact);
                 yield break;
 
+            case QuoteBlock quoteBlock:
+                foreach (var quoted in ConvertQuote(quoteBlock, compact))
+                {
+                    yield return quoted;
+                }
+
+                yield break;
+
             case FencedCodeBlock fencedCode:
                 yield return ConvertCodeBlock(fencedCode);
                 yield break;
@@ -93,7 +113,7 @@ public static class MarkdownRenderer
                 yield return new Paragraph(new Run("- - -"))
                 {
                     Margin = new Thickness(0, 4, 0, 4),
-                    Foreground = Brushes.Gray
+                    Foreground = MediaBrushes.Gray
                 };
                 yield break;
 
@@ -114,6 +134,25 @@ public static class MarkdownRenderer
         }
     }
 
+    private static IEnumerable<WpfBlock> ConvertQuote(QuoteBlock quoteBlock, bool compact)
+    {
+        foreach (var child in quoteBlock)
+        {
+            foreach (var block in ConvertBlock(child, compact))
+            {
+                block.Margin = new Thickness(14, block.Margin.Top, 0, block.Margin.Bottom);
+
+                if (block is Paragraph paragraph)
+                {
+                    paragraph.Foreground = FreezeBrush("#555555");
+                    paragraph.Inlines.InsertBefore(paragraph.Inlines.FirstInline, new Run("| "));
+                }
+
+                yield return block;
+            }
+        }
+    }
+
     private static Paragraph ConvertHeading(HeadingBlock heading, bool compact)
     {
         var paragraph = CreateParagraph(compact: compact);
@@ -124,18 +163,13 @@ public static class MarkdownRenderer
         }
 
         paragraph.FontWeight = FontWeights.Bold;
-        paragraph.Margin = compact
-            ? new Thickness(0, 4, 0, 4)
-            : new Thickness(0, 8, 0, 6);
-
+        paragraph.Margin = compact ? new Thickness(0, 4, 0, 4) : new Thickness(0, 8, 0, 6);
         paragraph.FontSize = heading.Level switch
         {
             1 => compact ? 18 : 22,
             2 => compact ? 17 : 20,
             3 => compact ? 16 : 18,
-            4 => compact ? 15 : 16,
-            5 => compact ? 14 : 15,
-            _ => compact ? 14 : 14
+            _ => compact ? 14 : 16
         };
 
         return paragraph;
@@ -164,16 +198,15 @@ public static class MarkdownRenderer
 
         foreach (var child in listBlock)
         {
-            if (child is not ListItemBlock listItemBlock)
+            if (child is not ListItemBlock itemBlock)
             {
                 continue;
             }
 
             var listItem = new ListItem();
-
-            foreach (var itemBlock in listItemBlock)
+            foreach (var nested in itemBlock)
             {
-                foreach (var converted in ConvertBlock(itemBlock, compact))
+                foreach (var converted in ConvertBlock(nested, compact))
                 {
                     listItem.Blocks.Add(converted);
                 }
@@ -192,13 +225,11 @@ public static class MarkdownRenderer
 
     private static WpfBlock ConvertCodeBlock(CodeBlock codeBlock)
     {
-        var code = ExtractCode(codeBlock);
-
-        return new Paragraph(new Run(code))
+        return new Paragraph(new Run(ExtractCode(codeBlock)))
         {
             Margin = new Thickness(0, 6, 0, 6),
             Padding = new Thickness(8, 6, 8, 6),
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = new MediaFontFamily("Consolas"),
             FontSize = 12,
             Background = CodeBackground
         };
@@ -226,9 +257,7 @@ public static class MarkdownRenderer
     {
         return new Paragraph(new Run(text))
         {
-            Margin = compact
-                ? new Thickness(0, 2, 0, 2)
-                : new Thickness(0, 4, 0, 4)
+            Margin = compact ? new Thickness(0, 2, 0, 2) : new Thickness(0, 4, 0, 4)
         };
     }
 
@@ -279,13 +308,13 @@ public static class MarkdownRenderer
             {
                 var text = literal.Content.ToString();
 
-                if (TrySplitTaskPrefix(text, out var checkbox, out var restText))
+                if (TrySplitTaskPrefix(text, out var checkbox, out var rest))
                 {
                     yield return CreateStyledRun(checkbox, style);
 
-                    if (!string.IsNullOrEmpty(restText))
+                    if (!string.IsNullOrEmpty(rest))
                     {
-                        yield return CreateStyledRun(restText, style);
+                        yield return CreateStyledRun(rest, style);
                     }
 
                     yield break;
@@ -302,7 +331,7 @@ public static class MarkdownRenderer
             case CodeInline codeInline:
             {
                 var run = CreateStyledRun(codeInline.Content, style);
-                run.FontFamily = new FontFamily("Consolas");
+                run.FontFamily = new MediaFontFamily("Consolas");
                 run.Background = CodeBackground;
                 yield return run;
                 yield break;
@@ -335,7 +364,10 @@ public static class MarkdownRenderer
 
             case LinkInline linkInline when !linkInline.IsImage:
             {
-                var hyperlink = new Hyperlink();
+                var hyperlink = new Hyperlink
+                {
+                    Foreground = LinkBrush
+                };
 
                 if (Uri.TryCreate(linkInline.Url, UriKind.Absolute, out var uri))
                 {
@@ -352,7 +384,6 @@ public static class MarkdownRenderer
                     hyperlink.Inlines.Add(CreateStyledRun(linkInline.Url ?? string.Empty, style with { Underline = true }));
                 }
 
-                hyperlink.Foreground = CreateFrozenBrush("#1A5FB4");
                 yield return hyperlink;
                 yield break;
             }
@@ -434,15 +465,15 @@ public static class MarkdownRenderer
             return false;
         }
 
-        var normalized = htmlTag.Trim().ToLowerInvariant();
+        var tag = htmlTag.Trim().ToLowerInvariant();
 
-        if (normalized.StartsWith("<u") && !normalized.StartsWith("</"))
+        if (tag.StartsWith("<u") && !tag.StartsWith("</", StringComparison.Ordinal))
         {
             style = style with { Underline = true };
             return true;
         }
 
-        if (normalized.StartsWith("</u"))
+        if (tag.StartsWith("</u", StringComparison.Ordinal))
         {
             style = style with { Underline = false };
             return true;
@@ -465,23 +496,19 @@ public static class MarkdownRenderer
             return null;
         }
 
-        return normalized.Contains("checked")
+        return normalized.Contains("checked", StringComparison.Ordinal)
             ? CreateStyledRun("☑ ", style)
             : CreateStyledRun("☐ ", style);
     }
 
-    private static Brush CreateFrozenBrush(string hex)
+    private static MediaBrush FreezeBrush(string hex)
     {
-        var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
+        var brush = (MediaSolidColorBrush)new MediaBrushConverter().ConvertFromString(hex)!;
         brush.Freeze();
         return brush;
     }
 
-    private readonly record struct InlineStyle(
-        bool Bold,
-        bool Italic,
-        bool Underline,
-        bool Strikethrough)
+    private readonly record struct InlineStyle(bool Bold, bool Italic, bool Underline, bool Strikethrough)
     {
         public static InlineStyle Default => new(false, false, false, false);
     }
