@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Windows;
 using System.Windows.Documents;
 using MediaBrush = System.Windows.Media.Brush;
@@ -79,6 +79,11 @@ public sealed class MarkdownService
 
     private static IEnumerable<WpfBlock> ConvertBlock(MdBlock block, bool compact)
     {
+        if (ShouldSkipBlock(block))
+        {
+            yield break;
+        }
+
         switch (block)
         {
             case HeadingBlock heading:
@@ -129,8 +134,16 @@ public sealed class MarkdownService
                 yield break;
 
             default:
-                yield return CreateParagraph(block.ToString() ?? string.Empty, compact);
+            {
+                var fallbackText = block.ToString() ?? string.Empty;
+                if (LooksLikeExtensionArtifact(fallbackText))
+                {
+                    yield break;
+                }
+
+                yield return CreateParagraph(fallbackText, compact);
                 yield break;
+            }
         }
     }
 
@@ -189,9 +202,15 @@ public sealed class MarkdownService
 
     private static System.Windows.Documents.List ConvertList(ListBlock listBlock, bool compact)
     {
+        var isTaskList = IsTaskList(listBlock);
+
         var list = new System.Windows.Documents.List
         {
-            MarkerStyle = listBlock.IsOrdered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc,
+            MarkerStyle = isTaskList
+                ? TextMarkerStyle.None
+                : listBlock.IsOrdered
+                    ? TextMarkerStyle.Decimal
+                    : TextMarkerStyle.Disc,
             Margin = compact ? new Thickness(0, 2, 0, 2) : new Thickness(0, 4, 0, 4),
             Padding = new Thickness(18, 0, 0, 0)
         };
@@ -302,6 +321,12 @@ public sealed class MarkdownService
 
     private static IEnumerable<WpfInline> ConvertInline(MdInline inline, InlineStyle style)
     {
+        if (TryConvertTaskListInline(inline, style, out var taskCheckbox))
+        {
+            yield return taskCheckbox;
+            yield break;
+        }
+
         switch (inline)
         {
             case LiteralInline literal:
@@ -397,9 +422,71 @@ public sealed class MarkdownService
                 yield break;
 
             default:
-                yield return CreateStyledRun(inline.ToString() ?? string.Empty, style);
+            {
+                var fallbackText = inline.ToString() ?? string.Empty;
+                if (LooksLikeExtensionArtifact(fallbackText))
+                {
+                    yield break;
+                }
+
+                yield return CreateStyledRun(fallbackText, style);
                 yield break;
+            }
         }
+    }
+
+    private static bool IsTaskList(ListBlock listBlock)
+    {
+        foreach (var child in listBlock)
+        {
+            if (child is not ListItemBlock item)
+            {
+                continue;
+            }
+
+            if (ListItemContainsTask(item))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ListItemContainsTask(ListItemBlock item)
+    {
+        foreach (var block in item)
+        {
+            if (block is not ParagraphBlock paragraph || paragraph.Inline is null)
+            {
+                continue;
+            }
+
+            var inline = paragraph.Inline.FirstChild;
+            while (inline is not null)
+            {
+                if (TryConvertTaskListInline(inline, InlineStyle.Default, out _))
+                {
+                    return true;
+                }
+
+                if (inline is HtmlInline html && ConvertTaskCheckbox(html.Tag, InlineStyle.Default) is not null)
+                {
+                    return true;
+                }
+
+                if (inline is LiteralInline literal &&
+                    (literal.Content.ToString().StartsWith("[ ] ", StringComparison.Ordinal) ||
+                     literal.Content.ToString().StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+
+                inline = inline.NextSibling;
+            }
+        }
+
+        return false;
     }
 
     private static Run CreateStyledRun(string text, InlineStyle style)
@@ -441,17 +528,21 @@ public sealed class MarkdownService
         checkbox = string.Empty;
         restText = text;
 
-        if (text.StartsWith("[ ] ", StringComparison.Ordinal))
+        if (text.StartsWith("[ ] ", StringComparison.Ordinal) ||
+            text.StartsWith("- [ ] ", StringComparison.Ordinal) ||
+            text.StartsWith("* [ ] ", StringComparison.Ordinal))
         {
-            checkbox = "☐ ";
-            restText = text[4..];
+            checkbox = "\u2610 ";
+            restText = text.StartsWith("[ ] ", StringComparison.Ordinal) ? text[4..] : text[6..];
             return true;
         }
 
-        if (text.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase))
+        if (text.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("* [x] ", StringComparison.OrdinalIgnoreCase))
         {
-            checkbox = "☑ ";
-            restText = text[4..];
+            checkbox = "\u2611 ";
+            restText = text.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase) ? text[4..] : text[6..];
             return true;
         }
 
@@ -491,14 +582,49 @@ public sealed class MarkdownService
 
         var normalized = htmlTag.ToLowerInvariant();
 
-        if (!normalized.Contains("checkbox"))
+        if (!normalized.Contains("checkbox", StringComparison.Ordinal))
         {
             return null;
         }
 
         return normalized.Contains("checked", StringComparison.Ordinal)
-            ? CreateStyledRun("☑ ", style)
-            : CreateStyledRun("☐ ", style);
+            ? CreateStyledRun("\u2611 ", style)
+            : CreateStyledRun("\u2610 ", style);
+    }
+
+    private static bool TryConvertTaskListInline(MdInline inline, InlineStyle style, out WpfInline taskCheckbox)
+    {
+        taskCheckbox = null!;
+
+        var inlineType = inline.GetType();
+        if (!string.Equals(inlineType.FullName, "Markdig.Extensions.TaskLists.TaskList", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var checkedProperty = inlineType.GetProperty("Checked");
+        var isChecked = checkedProperty?.PropertyType == typeof(bool) &&
+                        checkedProperty.GetValue(inline) is true;
+
+        taskCheckbox = CreateStyledRun(isChecked ? "\u2611 " : "\u2610 ", style);
+        return true;
+    }
+
+    private static bool ShouldSkipBlock(MdBlock block)
+    {
+        var fullName = block.GetType().FullName ?? string.Empty;
+
+        return string.Equals(fullName, "Markdig.Extensions.AutoIdentifiers.HeadingLinkReferenceDefinition", StringComparison.Ordinal);
+    }
+
+    private static bool LooksLikeExtensionArtifact(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        return text.StartsWith("Markdig.Extensions.", StringComparison.Ordinal);
     }
 
     private static MediaBrush FreezeBrush(string hex)

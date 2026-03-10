@@ -222,9 +222,9 @@ public partial class StickyNoteWindow : Window
         ToggleList();
     }
 
-    private void PreviewViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void PreviewViewer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount < 2)
+        if (IsInsideHyperlink(e.OriginalSource))
         {
             return;
         }
@@ -496,6 +496,32 @@ public partial class StickyNoteWindow : Window
         return false;
     }
 
+    private static bool IsInsideHyperlink(object? source)
+    {
+        if (source is not DependencyObject dependencyObject)
+        {
+            return false;
+        }
+
+        DependencyObject? current = dependencyObject;
+
+        while (current is not null)
+        {
+            if (current is Hyperlink)
+            {
+                return true;
+            }
+
+            current = current switch
+            {
+                Visual visual => VisualTreeHelper.GetParent(visual),
+                FrameworkContentElement contentElement => contentElement.Parent as DependencyObject,
+                _ => null
+            };
+        }
+
+        return false;
+    }
     private static void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
         if (e.Uri is null)
@@ -514,7 +540,7 @@ public partial class StickyNoteWindow : Window
         }
         catch
         {
-            // 疫꿸퀡???됰슢??怨? ??쎈뻬 ??쎈솭 ???源? ?④쑴????덉삂??몃빍??
+            // Ignore browser launch failures and keep the app running.
         }
     }
 }
