@@ -123,7 +123,7 @@
                         Content="+"
                         FontSize="20"
                         Command="{Binding NewNoteCommand}"
-                        ToolTip="??硫붾え" />
+                        ToolTip="&#xC0C8; &#xBA54;&#xBAA8; &#xB9CC;&#xB4E4;&#xAE30;" />
 
                 <TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
@@ -140,15 +140,15 @@
                         FontSize="14"
                         Content="&#xE700;"
                         Click="SettingsButton_Click"
-                        ToolTip="?ㅼ젙">
+                        ToolTip="&#xC124;&#xC815;">
                     <Button.ContextMenu>
                         <ContextMenu x:Name="SettingsMenu"
                                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="Start with Windows"
+                            <MenuItem Header="Windows &#xC2DC;&#xC791; &#xC2DC; &#xC2E4;&#xD589;"
                                       IsCheckable="True"
                                       IsChecked="{Binding StartWithWindows, Mode=TwoWay}" />
                             <Separator />
-                            <MenuItem Header="Quit"
+                            <MenuItem Header="&#xD504;&#xB85C;&#xADF8;&#xB7A8; &#xC885;&#xB8CC;"
                                       Command="{Binding ExitAppCommand}" />
                         </ContextMenu>
                     </Button.ContextMenu>
@@ -160,7 +160,7 @@
                         FontSize="12"
                         Content="&#xE711;"
                         Click="CloseBoardButton_Click"
-                        ToolTip="Minimize" />
+                        ToolTip="&#xAD00;&#xB9AC;&#xCC3D; &#xCD5C;&#xC18C;&#xD654;" />
             </Grid>
 
             <Grid Grid.Row="1" Margin="0,6,0,8">
@@ -186,7 +186,7 @@
                            VerticalAlignment="Center"
                            Foreground="#8D8D8D"
                            FontSize="14"
-                           Text="Search..."
+                           Text="&#xAC80;&#xC0C9;..."
                            IsHitTestVisible="False">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -247,7 +247,7 @@
                                             FontSize="11"
                                             Foreground="#5A5A5A"
                                             Content="&#xE722;"
-                                            ToolTip="?명듃 ?닿린"
+                                            ToolTip="&#xBA54;&#xBAA8; &#xC5F4;&#xAE30;"
                                             Command="{Binding DataContext.OpenNoteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding}" />
 
@@ -266,7 +266,7 @@
                                             FontSize="12"
                                             Foreground="#5A5A5A"
                                             Content="&#xE74D;"
-                                            ToolTip="??젣"
+                                            ToolTip="&#xBA54;&#xBAA8; &#xC0AD;&#xC81C;"
                                             Command="{Binding DataContext.DeleteNoteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding}" />
                                 </Grid>

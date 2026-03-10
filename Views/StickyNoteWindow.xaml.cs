@@ -6,6 +6,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using StickyMD.ViewModels;
 
 namespace StickyMD.Views;
@@ -43,15 +44,22 @@ public partial class StickyNoteWindow : Window
 
     public string NoteId => _noteViewModel.Id;
 
-    public void ShowFromManager()
+    public void ShowFromManager(bool activate = true)
     {
         if (!IsVisible)
         {
             Show();
         }
 
-        WindowState = WindowState.Normal;
-        Activate();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        if (activate)
+        {
+            Activate();
+        }
     }
 
     public void CloseForShutdown()
@@ -150,6 +158,14 @@ public partial class StickyNoteWindow : Window
         contextMenu.IsOpen = true;
     }
 
+    private void OpenManagerWindowMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current.MainWindow is MainWindow managerWindow)
+        {
+            managerWindow.ShowFromTray();
+        }
+    }
+
     private void ColorMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem || menuItem.Tag is not string color)
@@ -222,16 +238,14 @@ public partial class StickyNoteWindow : Window
         ToggleList();
     }
 
-    private void PreviewViewer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void PreviewViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (IsInsideHyperlink(e.OriginalSource))
         {
             return;
         }
 
-        _noteViewModel.IsPreviewMode = false;
-        EditorTextBox.Focus();
-        EditorTextBox.CaretIndex = EditorTextBox.Text.Length;
+        BeginEditMode();
         e.Handled = true;
     }
 
@@ -474,10 +488,22 @@ public partial class StickyNoteWindow : Window
     {
         if (_noteViewModel.IsPreviewMode)
         {
-            _noteViewModel.IsPreviewMode = false;
+            BeginEditMode();
+            return;
         }
 
         EditorTextBox.Focus();
+    }
+
+    private void BeginEditMode()
+    {
+        _noteViewModel.IsPreviewMode = false;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            EditorTextBox.Focus();
+            EditorTextBox.CaretIndex = EditorTextBox.Text.Length;
+        }, DispatcherPriority.Input);
     }
 
     private static bool IsDescendantOfWindow(DependencyObject element, DependencyObject root)
@@ -522,6 +548,7 @@ public partial class StickyNoteWindow : Window
 
         return false;
     }
+
     private static void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
         if (e.Uri is null)

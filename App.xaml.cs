@@ -8,7 +8,7 @@ using StickyMD.Views;
 
 namespace StickyMD;
 
-public partial class App : System.Windows.Application
+public partial class App : Application
 {
     private const string SingleInstanceMutexName = "StickyMD.SingleInstance.Mutex";
     private const string ActivationPipeName = "StickyMD.SingleInstance.Activate";
@@ -16,9 +16,7 @@ public partial class App : System.Windows.Application
     private static Mutex? _instanceMutex;
 
     private CancellationTokenSource? _activationListenerToken;
-
     private MainWindow? _mainWindow;
-    private MainViewModel? _mainViewModel;
     private bool _isExitRequested;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -39,17 +37,17 @@ public partial class App : System.Windows.Application
         {
             var storageService = new NoteStorageService();
             var markdownService = new MarkdownService();
+            var mainViewModel = new MainViewModel(storageService, markdownService);
 
-            _mainViewModel = new MainViewModel(storageService, markdownService);
-            _mainWindow = new MainWindow(_mainViewModel);
-
+            _mainWindow = new MainWindow(mainViewModel);
             MainWindow = _mainWindow;
-            _mainWindow.Show();
+
+            await _mainWindow.InitializeAsync(showManager: false);
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                $"StickyMD 시작 중 오류가 발생했습니다.\n\n{ex.Message}",
+            MessageBox.Show(
+                $"Failed to start StickyMD.\n\n{ex.Message}",
                 "StickyMD",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -113,7 +111,7 @@ public partial class App : System.Windows.Application
         }
         catch
         {
-            // 첫 인스턴스가 아직 준비 전이면 조용히 종료합니다.
+            // Ignore when the primary instance is still starting.
         }
     }
 
@@ -176,7 +174,7 @@ public partial class App : System.Windows.Application
         }
         catch
         {
-            // 이미 해제된 경우 무시합니다.
+            // Ignore if already released.
         }
 
         _instanceMutex.Dispose();

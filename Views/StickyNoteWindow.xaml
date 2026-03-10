@@ -100,7 +100,7 @@
                         FontSize="20"
                         Content="+"
                         Click="NewButton_Click"
-                        ToolTip="??硫붾え" />
+                        ToolTip="&#xC0C8; &#xBA54;&#xBAA8; &#xB9CC;&#xB4E4;&#xAE30;" />
 
                 <Button x:Name="MenuButton"
                         Grid.Column="2"
@@ -109,18 +109,21 @@
                         FontSize="14"
                         Content="&#xE700;"
                         Click="MenuButton_Click"
-                        ToolTip="?ㅼ젙">
+                        ToolTip="&#xC124;&#xC815;">
                     <Button.ContextMenu>
                         <ContextMenu x:Name="NoteMenu">
-                            <MenuItem Header="Preview Mode"
+                            <MenuItem Header="&#xBA54;&#xBAA8; &#xAD00;&#xB9AC;&#xCC3D; &#xC5F4;&#xAE30;"
+                                      Click="OpenManagerWindowMenuItem_Click" />
+                            <Separator />
+                            <MenuItem Header="&#xBBF8;&#xB9AC;&#xBCF4;&#xAE30; &#xBAA8;&#xB4DC;"
                                       IsCheckable="True"
                                       IsChecked="{Binding IsPreviewMode, Mode=TwoWay}" />
                             <Separator />
-                            <MenuItem Header="Color: Yellow" Tag="yellow" Click="ColorMenuItem_Click" />
-                            <MenuItem Header="Color: Pink" Tag="pink" Click="ColorMenuItem_Click" />
-                            <MenuItem Header="Color: Blue" Tag="blue" Click="ColorMenuItem_Click" />
-                            <MenuItem Header="Color: Green" Tag="green" Click="ColorMenuItem_Click" />
-                            <MenuItem Header="Color: Purple" Tag="purple" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="&#xC0C9;&#xC0C1;: &#xB178;&#xB791;" Tag="yellow" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="&#xC0C9;&#xC0C1;: &#xBD84;&#xD64D;" Tag="pink" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="&#xC0C9;&#xC0C1;: &#xD30C;&#xB791;" Tag="blue" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="&#xC0C9;&#xC0C1;: &#xCD08;&#xB85D;" Tag="green" Click="ColorMenuItem_Click" />
+                            <MenuItem Header="&#xC0C9;&#xC0C1;: &#xBCF4;&#xB77C;" Tag="purple" Click="ColorMenuItem_Click" />
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
@@ -131,7 +134,7 @@
                         FontSize="12"
                         Content="&#xE711;"
                         Click="CloseButton_Click"
-                        ToolTip="?リ린" />
+                        ToolTip="&#xBA54;&#xBAA8; &#xC228;&#xAE30;&#xAE30;" />
             </Grid>
 
             <Grid Grid.Row="1" Margin="8,8,8,8">
@@ -142,7 +145,7 @@
                                           Background="Transparent"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled"
-                                          MouseLeftButtonDown="PreviewViewer_MouseLeftButtonDown"
+                                          PreviewMouseLeftButtonDown="PreviewViewer_PreviewMouseLeftButtonDown"
                                           Visibility="Collapsed" />
 
                 <TextBox x:Name="EditorTextBox"
@@ -172,14 +175,14 @@
                             FontSize="22"
                             Content="a"
                             Click="BoldButton_Click"
-                            ToolTip="Bold (Ctrl+B)" />
+                            ToolTip="&#xAD75;&#xAC8C; (Ctrl+B)" />
 
                     <Button Style="{StaticResource FormatButtonStyle}"
                             FontStyle="Italic"
                             FontSize="22"
                             Content="a"
                             Click="ItalicButton_Click"
-                            ToolTip="Italic (Ctrl+I)" />
+                            ToolTip="&#xAE30;&#xC6B8;&#xC784; (Ctrl+I)" />
 
                     <Button Style="{StaticResource FormatButtonStyle}"
                             FontFamily="Consolas"
@@ -187,14 +190,14 @@
                             FontSize="16"
                             Content="&lt;/&gt;"
                             Click="CodeButton_Click"
-                            ToolTip="Code" />
+                            ToolTip="&#xCF54;&#xB4DC; &#xD1A0;&#xAE00;" />
 
                     <Button Style="{StaticResource FormatButtonStyle}"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="13"
                             Content="&#xE8FD;"
                             Click="ListButton_Click"
-                            ToolTip="List" />
+                            ToolTip="&#xBAA9;&#xB85D; &#xD1A0;&#xAE00;" />
                 </StackPanel>
             </Border>
         </Grid>

@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, StickyNoteWindow> _noteWindows = new();
 
     private bool _allowClose;
+    private bool _isInitialized;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -19,11 +20,35 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         DataContext = _viewModel;
 
-        Loaded += MainWindow_Loaded;
-
         _viewModel.OpenNoteRequested += ViewModel_OpenNoteRequested;
         _viewModel.NoteDeleted += ViewModel_NoteDeleted;
         _viewModel.ExitRequested += ViewModel_ExitRequested;
+    }
+
+    public async Task InitializeAsync(bool showManager)
+    {
+        if (!_isInitialized)
+        {
+            await _viewModel.InitializeAsync();
+
+            foreach (var note in _viewModel.Notes.ToList())
+            {
+                OpenOrShowNoteWindow(note, activate: false);
+            }
+
+            _isInitialized = true;
+        }
+
+        if (showManager)
+        {
+            ShowFromTray();
+            return;
+        }
+
+        if (IsVisible)
+        {
+            Hide();
+        }
     }
 
     public async Task EnsureSavedAsync()
@@ -33,6 +58,8 @@ public partial class MainWindow : Window
 
     public void ShowFromTray()
     {
+        ShowInTaskbar = true;
+
         if (!IsVisible)
         {
             Show();
@@ -58,25 +85,9 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
-    {
-        await _viewModel.InitializeAsync();
-    }
-
     private void ViewModel_OpenNoteRequested(object? sender, NoteViewModel note)
     {
-        if (_noteWindows.TryGetValue(note.Id, out var existingWindow))
-        {
-            existingWindow.ShowFromManager();
-            return;
-        }
-
-        var window = new StickyNoteWindow(_viewModel, note);
-
-        window.Closed += StickyWindow_Closed;
-        _noteWindows[note.Id] = window;
-
-        window.Show();
+        OpenOrShowNoteWindow(note, activate: true);
     }
 
     private void ViewModel_NoteDeleted(object? sender, NoteViewModel note)
@@ -91,9 +102,36 @@ public partial class MainWindow : Window
 
     private void ViewModel_ExitRequested(object? sender, EventArgs e)
     {
-        if (System.Windows.Application.Current is App app)
+        if (Application.Current is App app)
         {
             app.RequestExit();
+        }
+    }
+
+    private void OpenOrShowNoteWindow(NoteViewModel note, bool activate)
+    {
+        if (_noteWindows.TryGetValue(note.Id, out var existingWindow))
+        {
+            existingWindow.ShowFromManager(activate);
+            return;
+        }
+
+        var window = new StickyNoteWindow(_viewModel, note)
+        {
+            ShowActivated = activate
+        };
+
+        window.Closed += StickyWindow_Closed;
+        _noteWindows[note.Id] = window;
+
+        window.Show();
+
+        // Always reset to default behavior for later explicit show calls.
+        window.ShowActivated = true;
+
+        if (activate)
+        {
+            window.Activate();
         }
     }
 
@@ -139,7 +177,7 @@ public partial class MainWindow : Window
         _viewModel.OpenSelectedNote();
     }
 
-    private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.F && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {

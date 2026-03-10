@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Data;
@@ -76,6 +76,8 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand SaveNowCommand { get; }
 
     public ICollectionView FilteredNotes { get; }
+
+    public IReadOnlyList<NoteViewModel> Notes => _notes;
 
     public string SearchText
     {
@@ -351,7 +353,7 @@ public sealed class MainViewModel : ViewModelBase
         }
         catch
         {
-            // 레지스트리 권한 부족 등 예외는 앱 동작에 영향 없도록 무시합니다.
+            // Keep app running even when registry write fails.
         }
     }
 }
