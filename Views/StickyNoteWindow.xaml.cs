@@ -1,9 +1,10 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using StickyMD.ViewModels;
 
@@ -96,6 +97,14 @@ public partial class StickyNoteWindow : Window
         _noteViewModel.PropertyChanged -= NoteViewModel_PropertyChanged;
     }
 
+    private void StickyNoteWindow_Deactivated(object? sender, EventArgs e)
+    {
+        if (!_noteViewModel.IsPreviewMode)
+        {
+            _noteViewModel.IsPreviewMode = true;
+        }
+    }
+
     private void NoteViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(NoteViewModel.IsPreviewMode))
@@ -156,7 +165,7 @@ public partial class StickyNoteWindow : Window
         Hide();
     }
 
-    private async void StickyNoteWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private async void StickyNoteWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         var isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
@@ -205,46 +214,260 @@ public partial class StickyNoteWindow : Window
 
     private void CodeButton_Click(object sender, RoutedEventArgs e)
     {
-        EnsureEditMode();
-
-        var selected = EditorTextBox.SelectedText ?? string.Empty;
-
-        if (selected.Contains('\n'))
-        {
-            WrapSelection("```\n", "\n```");
-            return;
-        }
-
-        WrapSelection("`", "`");
+        ToggleCode();
     }
 
     private void ListButton_Click(object sender, RoutedEventArgs e)
     {
-        EnsureEditMode();
+        ToggleList();
+    }
 
-        var selected = EditorTextBox.SelectedText;
-        if (string.IsNullOrEmpty(selected))
+    private void PreviewViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2)
         {
-            InsertAtCaret("- ");
             return;
         }
 
-        var lines = selected.Split('\n');
-        var transformed = string.Join("\n", lines.Select(line => string.IsNullOrWhiteSpace(line) ? line : $"- {line}"));
+        _noteViewModel.IsPreviewMode = false;
+        EditorTextBox.Focus();
+        EditorTextBox.CaretIndex = EditorTextBox.Text.Length;
+        e.Handled = true;
+    }
 
-        ReplaceSelection(transformed);
+    private void EditorTextBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (e.NewFocus is DependencyObject dependencyObject && IsDescendantOfWindow(dependencyObject, this))
+        {
+            return;
+        }
+
+        _noteViewModel.IsPreviewMode = true;
     }
 
     private void ApplyBold()
     {
-        EnsureEditMode();
-        WrapSelection("**", "**");
+        ToggleInlineStyle("**", "**");
     }
 
     private void ApplyItalic()
     {
+        ToggleInlineStyle("*", "*");
+    }
+
+    private void ToggleCode()
+    {
         EnsureEditMode();
-        WrapSelection("*", "*");
+
+        if (!TryGetSelectionInfo(out var source, out var start, out var length))
+        {
+            return;
+        }
+
+        var selected = length > 0 ? source.Substring(start, length) : string.Empty;
+        var useBlockCode = selected.Contains('\n', StringComparison.Ordinal) ||
+                           IsWrapped(selected, "```\n", "\n```");
+
+        if (useBlockCode)
+        {
+            ToggleInlineStyle("```\n", "\n```");
+            return;
+        }
+
+        ToggleInlineStyle("`", "`");
+    }
+
+    private void ToggleList()
+    {
+        EnsureEditMode();
+
+        if (!TryGetSelectionInfo(out var source, out var start, out var length))
+        {
+            return;
+        }
+
+        if (length == 0)
+        {
+            ToggleCurrentLineListPrefix(source, start);
+            return;
+        }
+
+        var selected = source.Substring(start, length);
+        var lines = selected.Split('\n');
+
+        var nonEmptyLines = lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToList();
+        if (nonEmptyLines.Count == 0)
+        {
+            return;
+        }
+
+        var removePrefix = nonEmptyLines.All(HasListPrefix);
+
+        var transformed = string.Join("\n", lines.Select(line =>
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                return line;
+            }
+
+            return removePrefix ? RemoveListPrefix(line) : $"- {line}";
+        }));
+
+        ReplaceRange(source, start, length, transformed, start, transformed.Length);
+    }
+
+    private void ToggleInlineStyle(string prefix, string suffix)
+    {
+        EnsureEditMode();
+
+        if (!TryGetSelectionInfo(out var source, out var start, out var length))
+        {
+            return;
+        }
+
+        if (length == 0)
+        {
+            if (HasOutsideWrapper(source, start, 0, prefix, suffix))
+            {
+                var updated = source
+                    .Remove(start, suffix.Length)
+                    .Remove(start - prefix.Length, prefix.Length);
+
+                EditorTextBox.Text = updated;
+                SetSelection(start - prefix.Length, 0);
+                return;
+            }
+
+            var inserted = prefix + suffix;
+            var appended = source.Insert(start, inserted);
+            EditorTextBox.Text = appended;
+            SetSelection(start + prefix.Length, 0);
+            return;
+        }
+
+        var selected = source.Substring(start, length);
+
+        if (IsWrapped(selected, prefix, suffix))
+        {
+            var unwrapped = selected.Substring(prefix.Length, selected.Length - prefix.Length - suffix.Length);
+            ReplaceRange(source, start, length, unwrapped, start, unwrapped.Length);
+            return;
+        }
+
+        if (HasOutsideWrapper(source, start, length, prefix, suffix))
+        {
+            var updated = source
+                .Remove(start + length, suffix.Length)
+                .Remove(start - prefix.Length, prefix.Length);
+
+            EditorTextBox.Text = updated;
+            SetSelection(start - prefix.Length, length);
+            return;
+        }
+
+        var wrapped = prefix + selected + suffix;
+        ReplaceRange(source, start, length, wrapped, start + prefix.Length, length);
+    }
+
+    private void ToggleCurrentLineListPrefix(string source, int caret)
+    {
+        var lineStart = source.LastIndexOf('\n', Math.Max(0, caret - 1));
+        lineStart = lineStart < 0 ? 0 : lineStart + 1;
+
+        var lineEnd = source.IndexOf('\n', caret);
+        if (lineEnd < 0)
+        {
+            lineEnd = source.Length;
+        }
+
+        var lineLength = lineEnd - lineStart;
+        var line = source.Substring(lineStart, lineLength);
+
+        var removePrefix = HasListPrefix(line);
+        var replacement = removePrefix ? RemoveListPrefix(line) : $"- {line}";
+
+        var updated = source.Remove(lineStart, lineLength).Insert(lineStart, replacement);
+        EditorTextBox.Text = updated;
+
+        int newCaret;
+        if (removePrefix)
+        {
+            newCaret = caret >= lineStart + 2 ? caret - 2 : lineStart;
+        }
+        else
+        {
+            newCaret = caret + 2;
+        }
+
+        SetSelection(newCaret, 0);
+    }
+
+    private static bool HasListPrefix(string line)
+    {
+        return line.StartsWith("- ", StringComparison.Ordinal) ||
+               line.StartsWith("* ", StringComparison.Ordinal);
+    }
+
+    private static string RemoveListPrefix(string line)
+    {
+        if (line.StartsWith("- ", StringComparison.Ordinal) ||
+            line.StartsWith("* ", StringComparison.Ordinal))
+        {
+            return line[2..];
+        }
+
+        return line;
+    }
+
+    private static bool IsWrapped(string text, string prefix, string suffix)
+    {
+        return text.Length >= prefix.Length + suffix.Length &&
+               text.StartsWith(prefix, StringComparison.Ordinal) &&
+               text.EndsWith(suffix, StringComparison.Ordinal);
+    }
+
+    private static bool HasOutsideWrapper(string source, int start, int length, string prefix, string suffix)
+    {
+        return start >= prefix.Length &&
+               start + length + suffix.Length <= source.Length &&
+               source.AsSpan(start - prefix.Length, prefix.Length).SequenceEqual(prefix.AsSpan()) &&
+               source.AsSpan(start + length, suffix.Length).SequenceEqual(suffix.AsSpan());
+    }
+
+    private bool TryGetSelectionInfo(out string source, out int start, out int length)
+    {
+        source = EditorTextBox.Text ?? string.Empty;
+        start = EditorTextBox.SelectionStart;
+        length = EditorTextBox.SelectionLength;
+
+        if (start < 0 || start > source.Length)
+        {
+            return false;
+        }
+
+        if (length < 0 || start + length > source.Length)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ReplaceRange(string source, int start, int length, string replacement, int newSelectionStart, int newSelectionLength)
+    {
+        var updated = source.Remove(start, length).Insert(start, replacement);
+        EditorTextBox.Text = updated;
+        SetSelection(newSelectionStart, newSelectionLength);
+    }
+
+    private void SetSelection(int start, int length)
+    {
+        var totalLength = EditorTextBox.Text?.Length ?? 0;
+        var safeStart = Math.Clamp(start, 0, totalLength);
+        var safeLength = Math.Clamp(length, 0, totalLength - safeStart);
+
+        EditorTextBox.SelectionStart = safeStart;
+        EditorTextBox.SelectionLength = safeLength;
     }
 
     private void EnsureEditMode()
@@ -257,76 +480,20 @@ public partial class StickyNoteWindow : Window
         EditorTextBox.Focus();
     }
 
-    private void WrapSelection(string prefix, string suffix)
+    private static bool IsDescendantOfWindow(DependencyObject element, DependencyObject root)
     {
-        var source = EditorTextBox.Text ?? string.Empty;
-        var start = EditorTextBox.SelectionStart;
-        var length = EditorTextBox.SelectionLength;
-
-        if (start < 0 || start > source.Length)
+        var current = element;
+        while (current is not null)
         {
-            return;
+            if (ReferenceEquals(current, root))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
         }
 
-        if (length < 0 || start + length > source.Length)
-        {
-            return;
-        }
-
-        var selected = EditorTextBox.SelectedText ?? string.Empty;
-        var wrapped = prefix + selected + suffix;
-
-        var updated = source.Remove(start, length).Insert(start, wrapped);
-        EditorTextBox.Text = updated;
-
-        if (length == 0)
-        {
-            EditorTextBox.SelectionStart = start + prefix.Length;
-            EditorTextBox.SelectionLength = 0;
-        }
-        else
-        {
-            EditorTextBox.SelectionStart = start + prefix.Length;
-            EditorTextBox.SelectionLength = length;
-        }
-    }
-
-    private void InsertAtCaret(string text)
-    {
-        var source = EditorTextBox.Text ?? string.Empty;
-        var start = EditorTextBox.SelectionStart;
-
-        if (start < 0 || start > source.Length)
-        {
-            return;
-        }
-
-        var updated = source.Insert(start, text);
-        EditorTextBox.Text = updated;
-        EditorTextBox.SelectionStart = start + text.Length;
-        EditorTextBox.SelectionLength = 0;
-    }
-
-    private void ReplaceSelection(string replacement)
-    {
-        var source = EditorTextBox.Text ?? string.Empty;
-        var start = EditorTextBox.SelectionStart;
-        var length = EditorTextBox.SelectionLength;
-
-        if (start < 0 || start > source.Length)
-        {
-            return;
-        }
-
-        if (length < 0 || start + length > source.Length)
-        {
-            return;
-        }
-
-        var updated = source.Remove(start, length).Insert(start, replacement);
-        EditorTextBox.Text = updated;
-        EditorTextBox.SelectionStart = start;
-        EditorTextBox.SelectionLength = replacement.Length;
+        return false;
     }
 
     private static void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
@@ -347,7 +514,7 @@ public partial class StickyNoteWindow : Window
         }
         catch
         {
-            // 기본 브라우저 실행 실패 시 앱은 계속 동작합니다.
+            // 疫꿸퀡???됰슢??怨? ??쎈뻬 ??쎈솭 ???源? ?④쑴????덉삂??몃빍??
         }
     }
 }

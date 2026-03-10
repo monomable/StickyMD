@@ -1,4 +1,4 @@
-﻿using System.Windows.Documents;
+using System.Windows.Documents;
 using MediaBrush = System.Windows.Media.Brush;
 using MediaBrushConverter = System.Windows.Media.BrushConverter;
 using MediaSolidColorBrush = System.Windows.Media.SolidColorBrush;
@@ -27,7 +27,7 @@ public sealed class NoteViewModel : ViewModelBase
     private double _y;
     private double _width;
     private double _height;
-    private bool _isPreviewMode;
+    private bool _isPreviewMode = true;
     private bool _hasPendingChanges;
 
     private FlowDocument? _previewDocument;

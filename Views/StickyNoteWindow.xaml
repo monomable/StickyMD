@@ -1,4 +1,4 @@
-﻿<Window x:Class="StickyMD.Views.StickyNoteWindow"
+<Window x:Class="StickyMD.Views.StickyNoteWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Sticky Note"
@@ -13,6 +13,7 @@
         ShowInTaskbar="False"
         WindowStartupLocation="Manual"
         PreviewKeyDown="StickyNoteWindow_PreviewKeyDown"
+        Deactivated="StickyNoteWindow_Deactivated"
         Closing="StickyNoteWindow_Closing">
     <Window.Resources>
         <Style x:Key="HeaderButtonStyle" TargetType="Button">
@@ -141,7 +142,7 @@
                                           Background="Transparent"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled"
-
+                                          PreviewMouseLeftButtonDown="PreviewViewer_PreviewMouseLeftButtonDown"
                                           Visibility="Collapsed" />
 
                 <TextBox x:Name="EditorTextBox"
@@ -155,7 +156,8 @@
                          AcceptsReturn="True"
                          AcceptsTab="True"
                          VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Disabled" />
+                         HorizontalScrollBarVisibility="Disabled"
+                         LostKeyboardFocus="EditorTextBox_LostKeyboardFocus" />
             </Grid>
 
             <Border Grid.Row="2"

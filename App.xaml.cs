@@ -1,11 +1,10 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Windows;
 using StickyMD.Services;
 using StickyMD.ViewModels;
 using StickyMD.Views;
-using Forms = System.Windows.Forms;
 
 namespace StickyMD;
 
@@ -17,7 +16,6 @@ public partial class App : System.Windows.Application
     private static Mutex? _instanceMutex;
 
     private CancellationTokenSource? _activationListenerToken;
-    private Forms.NotifyIcon? _trayIcon;
 
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
@@ -46,8 +44,6 @@ public partial class App : System.Windows.Application
             _mainWindow = new MainWindow(_mainViewModel);
 
             MainWindow = _mainWindow;
-
-            InitializeTrayIcon();
             _mainWindow.Show();
         }
         catch (Exception ex)
@@ -72,7 +68,6 @@ public partial class App : System.Windows.Application
             await _mainWindow.EnsureSavedAsync();
         }
 
-        _trayIcon?.Dispose();
         CleanupSingleInstanceResources();
 
         base.OnExit(e);
@@ -142,7 +137,7 @@ public partial class App : System.Windows.Application
 
                 if (string.Equals(message, "SHOW", StringComparison.OrdinalIgnoreCase))
                 {
-                    Dispatcher.Invoke(ShowMainWindowFromTray);
+                    Dispatcher.Invoke(ShowMainWindowFromActivation);
                 }
             }
             catch (OperationCanceledException)
@@ -151,36 +146,19 @@ public partial class App : System.Windows.Application
             }
             catch
             {
-                await Task.Delay(200, cancellationToken);
+                try
+                {
+                    await Task.Delay(200, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }
 
-    private void InitializeTrayIcon()
-    {
-        _trayIcon = new Forms.NotifyIcon
-        {
-            Text = "StickyMD",
-            Icon = System.Drawing.SystemIcons.Information,
-            Visible = true
-        };
-
-        var contextMenu = new Forms.ContextMenuStrip();
-        contextMenu.Items.Add("New Note", null, (_, _) => Dispatcher.Invoke(CreateNewNoteFromTray));
-        contextMenu.Items.Add("Show Notes", null, (_, _) => Dispatcher.Invoke(ShowMainWindowFromTray));
-        contextMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(RequestExit));
-
-        _trayIcon.ContextMenuStrip = contextMenu;
-        _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowMainWindowFromTray);
-    }
-
-    private void CreateNewNoteFromTray()
-    {
-        ShowMainWindowFromTray();
-        _mainViewModel?.NewNoteCommand.Execute(null);
-    }
-
-    private void ShowMainWindowFromTray()
+    private void ShowMainWindowFromActivation()
     {
         _mainWindow?.ShowFromTray();
     }

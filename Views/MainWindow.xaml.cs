@@ -1,8 +1,7 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using StickyMD.ViewModels;
-using StickyMD.Views;
 
 namespace StickyMD.Views;
 
@@ -72,10 +71,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var window = new StickyNoteWindow(_viewModel, note)
-        {
-            Owner = this
-        };
+        var window = new StickyNoteWindow(_viewModel, note);
 
         window.Closed += StickyWindow_Closed;
         _noteWindows[note.Id] = window;
@@ -133,6 +129,11 @@ public partial class MainWindow : Window
         contextMenu.IsOpen = true;
     }
 
+    private void CloseBoardButton_Click(object sender, RoutedEventArgs e)
+    {
+        MinimizeToTaskbar();
+    }
+
     private void NoteList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         _viewModel.OpenSelectedNote();
@@ -153,10 +154,22 @@ public partial class MainWindow : Window
         if (!_allowClose)
         {
             e.Cancel = true;
-            Hide();
+            MinimizeToTaskbar();
             return;
         }
 
         await EnsureSavedAsync();
+    }
+
+    private void MinimizeToTaskbar()
+    {
+        ShowInTaskbar = true;
+
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        WindowState = WindowState.Minimized;
     }
 }
